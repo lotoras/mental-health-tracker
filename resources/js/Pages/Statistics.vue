@@ -115,25 +115,7 @@ const chartOptions = computed(() => ({
         }
     },
     dataLabels: {
-        enabled: true,
-        style: {
-            fontSize: '14px',
-            fontWeight: 700,
-            colors: ['#fff']
-        },
-        dropShadow: {
-            enabled: true,
-            top: 1,
-            left: 1,
-            blur: 2,
-            opacity: 0.5
-        },
-        formatter: function (val, opts) {
-            const breakdown = Object.values(props.statistics.state_breakdown)
-                .filter(item => item.label !== 'Nicht erfasst');
-            const item = breakdown[opts.seriesIndex];
-            return item.count + ' (' + val.toFixed(1) + '%)';
-        }
+        enabled: false
     },
     stroke: {
         width: 0
