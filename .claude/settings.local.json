@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(C:/laragon/bin/php/php-8.4.14-Win32-vs17-x64/php.exe:*)",
+      "Bash(export PATH=\"/c/laragon/bin/php/php-8.4.14-Win32-vs17-x64:/c/laragon/bin/nodejs/node-v24.11.1-win-x64:$PATH\")",
+      "Bash(php artisan breeze:install:*)",
+      "Bash(export PATH:*)",
+      "Bash(export PATH=\"/c/laragon/bin/nodejs/node-v24.11.1-win-x64:$PATH\")",
+      "Bash(npm install)",
+      "Bash(npm install:*)",
+      "Bash(export PATH=\"/c/laragon/bin/php/php-8.4.14-Win32-vs17-x64:$PATH\":*)",
+      "Bash(php artisan:*)",
+      "Bash(export PATH=\"/c/laragon/bin/php/php-8.4.14-Win32-vs17-x64:/c/laragon/bin/mysql/mysql-8.0.30-winx64/bin:$PATH\":*)",
+      "Bash(mysql:*)",
+      "Bash(npm run dev:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
