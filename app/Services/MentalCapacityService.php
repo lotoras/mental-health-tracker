@@ -54,6 +54,98 @@ class MentalCapacityService
     }
 
     /**
+     * Recalculate capacity logs from the first entry ever to today (in chronological order)
+     * This ensures capacity is always calculated correctly for ALL days.
+     * Empty days (days without mental state entries) maintain the previous day's capacity (0% drain).
+     */
+    public function recalculateCapacityFromFirstEntry(User $user): void
+    {
+        // Find the first mental state entry ever
+        $firstEntry = MentalState::where('user_id', $user->id)
+            ->orderBy('date', 'asc')
+            ->first();
+
+        // If no entries exist, nothing to calculate
+        if (!$firstEntry) {
+            return;
+        }
+
+        // Get all mental states from the first entry to today
+        $states = MentalState::where('user_id', $user->id)
+            ->where('date', '>=', $firstEntry->date)
+            ->with('stateType')
+            ->orderBy('date', 'asc')
+            ->get()
+            ->keyBy(fn($state) => $state->date->format('Y-m-d'));
+
+        // Start at 100% capacity on the first day
+        $currentCapacity = self::MAX_CAPACITY;
+        $currentDate = $firstEntry->date->copy();
+        $today = Carbon::today();
+
+        // Delete all existing capacity logs for this user to start fresh
+        MentalCapacityLog::where('user_id', $user->id)->delete();
+
+        // Iterate through each day from first entry to today
+        while ($currentDate->lte($today)) {
+            $dateKey = $currentDate->format('Y-m-d');
+            $capacityBefore = $currentCapacity;
+
+            // Check if user logged a state for this day
+            if (isset($states[$dateKey])) {
+                $state = $states[$dateKey];
+                $stateType = $state->stateType;
+
+                if ($stateType) {
+                    $capacityChange = $stateType->capacity_impact;
+                    $capacityAfter = $this->clampCapacity($capacityBefore + $capacityChange);
+                    $triggeredBreakdown = $stateType->is_breakdown && $capacityBefore <= self::BREAKDOWN_THRESHOLD;
+
+                    MentalCapacityLog::create([
+                        'user_id' => $user->id,
+                        'date' => $currentDate->copy(),
+                        'mental_state_id' => $state->id,
+                        'capacity_before' => $capacityBefore,
+                        'capacity_after' => $capacityAfter,
+                        'capacity_change' => $capacityChange,
+                        'triggered_breakdown' => $triggeredBreakdown,
+                    ]);
+
+                    $currentCapacity = $capacityAfter;
+                }
+            } else {
+                // Empty day: maintain current capacity (0% drain)
+                $capacityAfter = $capacityBefore;
+
+                MentalCapacityLog::create([
+                    'user_id' => $user->id,
+                    'date' => $currentDate->copy(),
+                    'mental_state_id' => null,
+                    'capacity_before' => $capacityBefore,
+                    'capacity_after' => $capacityAfter,
+                    'capacity_change' => 0,
+                    'triggered_breakdown' => false,
+                ]);
+
+                $currentCapacity = $capacityAfter;
+            }
+
+            $currentDate->addDay();
+        }
+    }
+
+    /**
+     * Recalculate capacity logs from a given date forward (in chronological order)
+     * This ensures capacity is always calculated correctly, even when entries are added out of order
+     * @deprecated Use recalculateCapacityFromFirstEntry instead
+     */
+    public function recalculateCapacityFrom(User $user, Carbon $fromDate): void
+    {
+        // Always recalculate from the first entry to ensure accuracy
+        $this->recalculateCapacityFromFirstEntry($user);
+    }
+
+    /**
      * Get current mental capacity for a user
      */
     public function getCurrentCapacity(User $user): int
@@ -88,22 +180,48 @@ class MentalCapacityService
      */
     public function analyzeBreakdownTriggers(User $user, int $days = 90): array
     {
-        $logs = MentalCapacityLog::where('user_id', $user->id)
-            ->where('date', '>=', now()->subDays($days))
+        // Get all mental states for the period (including recent past and near future for testing)
+        $startDate = now()->subDays($days);
+        $endDate = now()->addDays(7); // Include next 7 days for development/testing
+
+        $states = MentalState::where('user_id', $user->id)
+            ->whereBetween('date', [$startDate, $endDate])
+            ->with('stateType')
             ->orderBy('date', 'asc')
             ->get();
 
-        $breakdowns = $logs->filter(fn($log) => $log->triggered_breakdown);
-        $totalBreakdowns = MentalState::where('user_id', $user->id)
-            ->where('date', '>=', now()->subDays($days))
-            ->whereHas('stateType', fn($q) => $q->where('is_breakdown', true))
-            ->count();
+        // Find all breakdown states
+        $breakdownStates = $states->filter(fn($state) => $state->stateType?->is_breakdown === true);
+        $totalBreakdowns = \count($breakdownStates);
 
-        $triggeredByLowCapacity = $breakdowns->count();
+        // Calculate capacity before each breakdown by simulating the capacity timeline
+        $capacitiesBeforeBreakdowns = [];
+        $triggeredByLowCapacityCount = 0;
+        $currentCapacity = self::MAX_CAPACITY; // Start at 100%
 
-        // Get average capacity before breakdowns
-        $avgCapacityBeforeBreakdown = $breakdowns->isNotEmpty()
-            ? round($breakdowns->avg('capacity_before'))
+        foreach ($states as $state) {
+            // Skip if state type is not loaded
+            if (!$state->stateType) {
+                continue;
+            }
+
+            if ($state->stateType->is_breakdown === true) {
+                // Record capacity BEFORE this breakdown was logged
+                $capacitiesBeforeBreakdowns[] = $currentCapacity;
+
+                // Check if this breakdown was triggered by low capacity
+                if ($currentCapacity <= self::BREAKDOWN_THRESHOLD) {
+                    $triggeredByLowCapacityCount++;
+                }
+            }
+
+            // Update capacity after processing this state
+            $currentCapacity = $this->clampCapacity($currentCapacity + $state->stateType->capacity_impact);
+        }
+
+        // Calculate average capacity before breakdowns
+        $avgCapacityBeforeBreakdown = \count($capacitiesBeforeBreakdowns) > 0
+            ? round(array_sum($capacitiesBeforeBreakdowns) / \count($capacitiesBeforeBreakdowns))
             : null;
 
         // Count consecutive stressful days before breakdowns
@@ -111,9 +229,9 @@ class MentalCapacityService
 
         return [
             'total_breakdowns' => $totalBreakdowns,
-            'triggered_by_low_capacity' => $triggeredByLowCapacity,
+            'triggered_by_low_capacity' => $triggeredByLowCapacityCount,
             'percentage_triggered' => $totalBreakdowns > 0
-                ? round(($triggeredByLowCapacity / $totalBreakdowns) * 100, 1)
+                ? round(($triggeredByLowCapacityCount / $totalBreakdowns) * 100, 1)
                 : 0,
             'avg_capacity_before_breakdown' => $avgCapacityBeforeBreakdown,
             'avg_stress_streak_before_breakdown' => $stressStreaks['avg_streak'],

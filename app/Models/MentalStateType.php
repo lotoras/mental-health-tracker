@@ -14,10 +14,14 @@ class MentalStateType extends Model
         'color',
         'severity',
         'order',
+        'capacity_impact',
+        'is_breakdown',
     ];
 
     protected $casts = [
         'severity' => 'integer',
         'order' => 'integer',
+        'capacity_impact' => 'integer',
+        'is_breakdown' => 'boolean',
     ];
 }

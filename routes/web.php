@@ -1,17 +1,14 @@
 <?php
 
 use App\Http\Controllers\{ProfileController, CalendarController, StatisticsController};
-use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
 Route::get('/', function () {
-    return Inertia::render('Welcome', [
-        'canLogin' => Route::has('login'),
-        'canRegister' => Route::has('register'),
-        'laravelVersion' => Application::VERSION,
-        'phpVersion' => PHP_VERSION,
-    ]);
+    // Redirect authenticated users to calendar, guests to login
+    if (auth()->check()) {
+        return redirect()->route('calendar.index');
+    }
+    return redirect()->route('login');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
@@ -23,6 +20,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Calendar routes
     Route::get('/calendar', [CalendarController::class, 'index'])->name('calendar.index');
     Route::post('/calendar/state', [CalendarController::class, 'store'])->name('calendar.store');
+    Route::delete('/calendar/state', [CalendarController::class, 'destroy'])->name('calendar.destroy');
 
     // Statistics routes
     Route::get('/statistics', [StatisticsController::class, 'index'])->name('statistics.index');

@@ -18,18 +18,18 @@ class StatisticsController extends Controller
     public function index(Request $request): Response
     {
         $user = $request->user();
+        $range = $request->input('range', 'month'); // 'month' or 'all'
         $currentMonth = $request->input('month', now()->format('Y-m'));
         [$year, $month] = explode('-', $currentMonth);
 
-        $statistics = $this->statisticsService->getMonthlyStatistics(
-            $user,
-            (int)$year,
-            (int)$month
-        );
+        $statistics = $range === 'all'
+            ? $this->statisticsService->getAllTimeStatistics($user)
+            : $this->statisticsService->getMonthlyStatistics($user, (int)$year, (int)$month);
 
         return Inertia::render('Statistics', [
             'statistics' => $statistics,
             'currentMonth' => $currentMonth,
+            'range' => $range,
         ]);
     }
 }

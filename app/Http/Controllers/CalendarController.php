@@ -6,7 +6,6 @@ namespace App\Http\Controllers;
 
 use App\Models\MentalState;
 use App\Services\{MentalCapacityService, StatisticsService};
-use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -57,7 +56,7 @@ class CalendarController extends Controller
         $user = $request->user();
 
         // Create or update mental state
-        $mentalState = MentalState::updateOrCreate(
+        MentalState::updateOrCreate(
             [
                 'user_id' => $user->id,
                 'date' => $validated['date'],
@@ -68,9 +67,37 @@ class CalendarController extends Controller
             ]
         );
 
-        // Log capacity change
-        $this->capacityService->logCapacityChange($mentalState);
+        // Recalculate all capacity from the first entry ever to today
+        // This ensures empty days are properly tracked as 0%
+        $this->capacityService->recalculateCapacityFromFirstEntry($user);
 
-        return redirect()->back()->with('success', 'Mental state saved successfully!');
+        // Return back to calendar with preserved state
+        return back();
+    }
+
+    public function destroy(Request $request)
+    {
+        $validated = $request->validate([
+            'date' => 'required|date',
+        ]);
+
+        $user = $request->user();
+
+        // Find and delete the mental state
+        $mentalState = MentalState::where('user_id', $user->id)
+            ->where('date', $validated['date'])
+            ->first();
+
+        if ($mentalState) {
+            // Delete the state
+            $mentalState->delete();
+
+            // Recalculate all capacity from the first entry ever to today
+            // This ensures empty days are properly tracked as 0%
+            $this->capacityService->recalculateCapacityFromFirstEntry($user);
+        }
+
+        // Return back to calendar with preserved state
+        return back();
     }
 }

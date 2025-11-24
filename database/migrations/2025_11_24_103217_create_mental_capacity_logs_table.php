@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('mental_capacity_logs', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            $table->foreignId('mental_state_id')->constrained()->onDelete('cascade');
+            $table->foreignId('mental_state_id')->nullable()->constrained()->onDelete('cascade');
             $table->date('date');
             $table->integer('capacity_before')->default(100); // Capacity % before this day
             $table->integer('capacity_after')->default(100);  // Capacity % after this day
