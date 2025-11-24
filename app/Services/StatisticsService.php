@@ -33,7 +33,7 @@ class StatisticsService
             'monthly_breakdown_count' => $this->getMonthlyBreakdownCount($user, $year, $month),
             'current_capacity' => $this->capacityService->getCurrentCapacity($user),
             'capacity_timeline' => $this->capacityService->getCapacityTimeline($user, $startDate, $endDate),
-            'breakdown_analysis' => $this->capacityService->analyzeBreakdownTriggers($user, 90),
+            'breakdown_analysis' => $this->capacityService->analyzeBreakdownTriggersForPeriod($user, $startDate, $endDate),
             'capacity_forecast' => $this->capacityService->forecastCapacity($user, 7),
         ];
     }
@@ -65,7 +65,7 @@ class StatisticsService
             'monthly_breakdown_count' => $totalBreakdowns, // All-time breakdown count
             'current_capacity' => $this->capacityService->getCurrentCapacity($user),
             'capacity_timeline' => $this->capacityService->getCapacityTimeline($user, $startDate, $endDate),
-            'breakdown_analysis' => $this->capacityService->analyzeBreakdownTriggers($user, 90),
+            'breakdown_analysis' => $this->capacityService->analyzeBreakdownTriggersForPeriod($user, $startDate, $endDate),
             'capacity_forecast' => $this->capacityService->forecastCapacity($user, 7),
         ];
     }

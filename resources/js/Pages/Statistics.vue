@@ -19,6 +19,8 @@ const props = defineProps({
     }
 });
 
+const isAllTime = computed(() => props.range === 'all');
+
 const toggleRange = () => {
     const newRange = props.range === 'month' ? 'all' : 'month';
     router.get('/statistics', { range: newRange, month: props.currentMonth }, {
@@ -87,7 +89,11 @@ const chartOptions = computed(() => ({
                         color: '#111827',
                         offsetY: 10,
                         formatter: function (val) {
-                            return val;
+                            // Show the actual count (day count) instead of percentage
+                            const breakdown = Object.values(props.statistics.state_breakdown)
+                                .filter(item => item.label !== 'Nicht erfasst');
+                            const index = w.globals.seriesIndex;
+                            return breakdown[index]?.count || val;
                         }
                     },
                     total: {
@@ -97,8 +103,11 @@ const chartOptions = computed(() => ({
                         fontSize: '14px',
                         fontWeight: 600,
                         color: '#6b7280',
-                        formatter: function (w) {
-                            return w.globals.seriesTotals.reduce((a, b) => a + b, 0);
+                        formatter: function () {
+                            // Sum up the actual day counts from the breakdown data
+                            const breakdown = Object.values(props.statistics.state_breakdown)
+                                .filter(item => item.label !== 'Nicht erfasst');
+                            return breakdown.reduce((sum, item) => sum + item.count, 0);
                         }
                     }
                 }
@@ -354,7 +363,7 @@ const getRiskLabel = (risk) => {
                         </div>
                     </div>
 
-                    <div class="group overflow-hidden rounded-3xl bg-gradient-to-br from-purple-600 via-pink-600 to-blue-600 p-6 shadow-xl ring-1 ring-black/5 transition-all hover:scale-105 hover:shadow-2xl">
+                    <div v-if="!isAllTime" class="group overflow-hidden rounded-3xl bg-gradient-to-br from-purple-600 via-pink-600 to-blue-600 p-6 shadow-xl ring-1 ring-black/5 transition-all hover:scale-105 hover:shadow-2xl">
                         <div class="flex items-start justify-between">
                             <div>
                                 <div class="text-xs font-bold uppercase tracking-wider text-white/80">Aktuelle Kapazität</div>
@@ -371,7 +380,7 @@ const getRiskLabel = (risk) => {
                         </div>
                     </div>
 
-                    <div class="group overflow-hidden rounded-3xl bg-white p-6 shadow-xl ring-1 ring-black/5 transition-all hover:scale-105 hover:shadow-2xl">
+                    <div v-if="!isAllTime" class="group overflow-hidden rounded-3xl bg-white p-6 shadow-xl ring-1 ring-black/5 transition-all hover:scale-105 hover:shadow-2xl">
                         <div class="flex items-start justify-between">
                             <div>
                                 <div class="text-xs font-bold uppercase tracking-wider text-gray-500">Tage seit Breakdown</div>
@@ -409,7 +418,7 @@ const getRiskLabel = (risk) => {
                 </div>
 
                 <!-- Capacity Timeline -->
-                <div class="overflow-hidden rounded-3xl bg-white shadow-xl ring-1 ring-black/5">
+                <div v-if="!isAllTime" class="overflow-hidden rounded-3xl bg-white shadow-xl ring-1 ring-black/5">
                     <div class="bg-gradient-to-r from-purple-50 via-pink-50 to-blue-50 p-6">
                         <h3 class="flex items-center gap-2 text-xl font-black text-gray-900">
                             <svg class="h-6 w-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -446,7 +455,7 @@ const getRiskLabel = (risk) => {
                             <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                             </svg>
-                            Breakdown-Analyse (90 Tage)
+                            {{ range === 'month' ? 'Breakdown-Analyse (Diesen Monat)' : 'Breakdown-Analyse (Gesamt)' }}
                         </h3>
                         <div class="grid gap-4 md:grid-cols-3">
                             <div class="group overflow-hidden rounded-2xl bg-white p-6 shadow-lg transition-all hover:scale-105 hover:shadow-2xl">

@@ -176,14 +176,10 @@ class MentalCapacityService
     }
 
     /**
-     * Analyze correlation between low capacity and breakdowns
+     * Analyze correlation between low capacity and breakdowns for a specific period
      */
-    public function analyzeBreakdownTriggers(User $user, int $days = 90): array
+    public function analyzeBreakdownTriggersForPeriod(User $user, Carbon $startDate, Carbon $endDate): array
     {
-        // Get all mental states for the period (including recent past and near future for testing)
-        $startDate = now()->subDays($days);
-        $endDate = now()->addDays(7); // Include next 7 days for development/testing
-
         $states = MentalState::where('user_id', $user->id)
             ->whereBetween('date', [$startDate, $endDate])
             ->with('stateType')
@@ -198,6 +194,16 @@ class MentalCapacityService
         $capacitiesBeforeBreakdowns = [];
         $triggeredByLowCapacityCount = 0;
         $currentCapacity = self::MAX_CAPACITY; // Start at 100%
+
+        // Get the capacity at the start date if available
+        $firstLog = MentalCapacityLog::where('user_id', $user->id)
+            ->where('date', '<', $startDate)
+            ->orderBy('date', 'desc')
+            ->first();
+
+        if ($firstLog) {
+            $currentCapacity = $firstLog->capacity_after;
+        }
 
         foreach ($states as $state) {
             // Skip if state type is not loaded
@@ -225,7 +231,7 @@ class MentalCapacityService
             : null;
 
         // Count consecutive stressful days before breakdowns
-        $stressStreaks = $this->findStressStreaksBeforeBreakdowns($user, $days);
+        $stressStreaks = $this->findStressStreaksBeforeBreakdownsForPeriod($states);
 
         return [
             'total_breakdowns' => $totalBreakdowns,
@@ -240,21 +246,33 @@ class MentalCapacityService
     }
 
     /**
-     * Find patterns of stressful days before breakdowns
+     * Analyze correlation between low capacity and breakdowns
+     * @deprecated Use analyzeBreakdownTriggersForPeriod instead
      */
-    private function findStressStreaksBeforeBreakdowns(User $user, int $days): array
+    public function analyzeBreakdownTriggers(User $user, int $days = 90): array
     {
-        $states = MentalState::where('user_id', $user->id)
-            ->where('date', '>=', now()->subDays($days))
-            ->with('stateType')
-            ->orderBy('date', 'asc')
-            ->get();
+        // Get all mental states for the period (including recent past and near future for testing)
+        $startDate = now()->subDays($days);
+        $endDate = now()->addDays(7); // Include next 7 days for development/testing
 
+        return $this->analyzeBreakdownTriggersForPeriod($user, $startDate, $endDate);
+    }
+
+    /**
+     * Find patterns of stressful days before breakdowns for a specific period
+     */
+    private function findStressStreaksBeforeBreakdownsForPeriod(Collection $states): array
+    {
         $streaks = [];
         $currentStreak = 0;
         $longestStreak = 0;
 
         foreach ($states as $state) {
+            // Skip if state type is not loaded
+            if (!$state->stateType) {
+                continue;
+            }
+
             // Count as stressful if it drains capacity
             if ($state->stateType->capacity_impact < 0) {
                 $currentStreak++;
@@ -274,6 +292,21 @@ class MentalCapacityService
             'avg_streak' => count($streaks) > 0 ? round(array_sum($streaks) / count($streaks), 1) : 0,
             'longest_streak' => $longestStreak,
         ];
+    }
+
+    /**
+     * Find patterns of stressful days before breakdowns
+     * @deprecated Use findStressStreaksBeforeBreakdownsForPeriod instead
+     */
+    private function findStressStreaksBeforeBreakdowns(User $user, int $days): array
+    {
+        $states = MentalState::where('user_id', $user->id)
+            ->where('date', '>=', now()->subDays($days))
+            ->with('stateType')
+            ->orderBy('date', 'asc')
+            ->get();
+
+        return $this->findStressStreaksBeforeBreakdownsForPeriod($states);
     }
 
     /**
