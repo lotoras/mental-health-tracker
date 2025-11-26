@@ -71,8 +71,16 @@ const getDateState = (day) => {
     return props.states[dateStr] || null;
 };
 
+const isFutureDate = (day) => {
+    if (!day) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const checkDate = new Date(currentYear.value, currentMonthNum.value, day);
+    return checkDate > today;
+};
+
 const openStateModal = (day) => {
-    if (!day) return;
+    if (!day || isFutureDate(day)) return;
 
     const dateStr = `${currentYear.value}-${String(currentMonthNum.value + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     selectedDate.value = dateStr;
@@ -326,16 +334,22 @@ const capacityRiskLevel = computed(() => {
                                 <button
                                     v-if="day"
                                     @click="openStateModal(day)"
-                                    :style="getDateState(day) ? { backgroundColor: getDateState(day).state_type.color } : {}"
+                                    :disabled="isFutureDate(day)"
+                                    :style="getDateState(day) && !isFutureDate(day) ? { backgroundColor: getDateState(day).state_type.color } : {}"
                                     :class="[
-                                        'group relative flex h-10 w-10 items-center justify-center rounded-2xl text-sm font-bold transition-all duration-300 hover:scale-110 active:scale-95 md:h-16 md:w-16 md:text-lg',
-                                        getDateState(day)
-                                            ? 'text-white shadow-lg hover:shadow-2xl'
-                                            : 'bg-gradient-to-br from-gray-50 to-gray-100 text-gray-700 shadow-sm hover:from-purple-50 hover:to-blue-50 hover:text-purple-700 hover:shadow-md'
+                                        'group relative flex h-10 w-10 items-center justify-center rounded-2xl text-sm font-bold transition-all duration-300 md:h-16 md:w-16 md:text-lg',
+                                        isFutureDate(day)
+                                            ? 'cursor-not-allowed bg-gray-200 text-gray-400 opacity-50'
+                                            : [
+                                                'hover:scale-110 active:scale-95',
+                                                getDateState(day)
+                                                    ? 'text-white shadow-lg hover:shadow-2xl'
+                                                    : 'bg-gradient-to-br from-gray-50 to-gray-100 text-gray-700 shadow-sm hover:from-purple-50 hover:to-blue-50 hover:text-purple-700 hover:shadow-md'
+                                            ]
                                     ]"
                                 >
                                     <span class="relative z-10">{{ day }}</span>
-                                    <div v-if="!getDateState(day)" class="absolute inset-0 rounded-2xl bg-gradient-to-br from-purple-400/0 to-blue-400/0 opacity-0 transition-opacity group-hover:from-purple-400/10 group-hover:to-blue-400/10 group-hover:opacity-100"></div>
+                                    <div v-if="!getDateState(day) && !isFutureDate(day)" class="absolute inset-0 rounded-2xl bg-gradient-to-br from-purple-400/0 to-blue-400/0 opacity-0 transition-opacity group-hover:from-purple-400/10 group-hover:to-blue-400/10 group-hover:opacity-100"></div>
                                 </button>
                             </div>
                         </div>
